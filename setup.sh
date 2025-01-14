@@ -5,22 +5,20 @@ set -e
 
 echo "Setting up Machine Vision Exercise 5 environment..."
 
-# Check Python version
-if ! command -v python3 &> /dev/null; then
-    echo "Python 3 is not installed. Please install Python 3.8 or newer."
-    exit 1
-fi
+# Make install_python.sh executable and run it
+chmod +x install_python.sh
+./install_python.sh
 
-# Create virtual environment
+# Create virtual environment with Python 3.11
 echo "Creating virtual environment..."
-python3 -m venv .venv
+python3.11 -m venv venv
 
 # Activate virtual environment
 echo "Activating virtual environment..."
-source .venv/bin/activate
+source venv/bin/activate
 
 # Upgrade pip
-python3 -m pip install --upgrade pip
+python3.11 -m pip install --upgrade pip
 
 # Install requirements
 echo "Installing requirements..."
@@ -35,7 +33,7 @@ mkdir -p results_deep
 
 # Verify installation
 echo "Verifying installation..."
-python3 -c "
+python3.11 -c "
 import sys
 import open3d
 import torch
