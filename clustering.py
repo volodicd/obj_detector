@@ -27,7 +27,6 @@ def cluster_objects(pcd: o3d.geometry.PointCloud,
 
     unique_labels = np.unique(labels)
     clusters = []
-
     # Filter out noise points (label -1) and small clusters
     for label in unique_labels:
         if label == -1:  # Skip noise points
@@ -41,8 +40,8 @@ def cluster_objects(pcd: o3d.geometry.PointCloud,
 
 
 def dbscan(points: np.ndarray,
-           eps: float = 0.05,
-           min_samples: int = 10) -> np.ndarray:
+           eps: float = 0.1,
+           min_samples: int = 50) -> np.ndarray:
     """ Find clusters in the provided data coming from a pointcloud using the DBSCAN algorithm.
 
     :param points: The (down-sampled) points of the pointcloud to be clustered
@@ -64,6 +63,7 @@ def dbscan(points: np.ndarray,
     n_points = len(points)
     labels = np.full(n_points, -2, dtype=int)  # -2 = unvisited
     cluster_id = 0
+
 
     for i in range(n_points):
         # If visited (either assigned to cluster or noise) - skip

@@ -36,7 +36,8 @@ class ObjectRecognitionPipeline:
         """Process a single scene"""
         print("Removing ground plane...")
         filtered_pcd, plane_model = remove_ground_plane(pcd)
-
+        voxel_size = 0.001
+        filtered_pcd = filtered_pcd.voxel_down_sample(voxel_size)
         print("Clustering objects...")
         clusters, labels = cluster_objects(filtered_pcd)
 
@@ -50,8 +51,7 @@ class ObjectRecognitionPipeline:
             processed_image,
             label_image,
             classifications,
-            self.recognizer,
-            self.recognizer.training_data
+
         )
 
         if self.results_dir is not None:
@@ -65,20 +65,6 @@ class ObjectRecognitionPipeline:
             )
 
         return classifications, result_image, label_image
-
-    def visualize_results(self, image: np.ndarray, classifications: Dict[int, str]) -> np.ndarray:
-        result = image.copy()
-
-        for cluster_id, class_name in classifications.items():
-            mask = (image != 0).any(axis=2)  # Non-black pixels
-            if not np.any(mask):
-                continue
-
-            y, x = np.where(mask)
-            centroid = (int(np.mean(x)), int(np.mean(y)))
-
-            cv2.putText(result, class_name, centroid, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        return result
 
 
 def main():
