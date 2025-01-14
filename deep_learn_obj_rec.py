@@ -280,10 +280,36 @@ plt.xlabel ("Predicted")
 plt.ylabel ("True")
 plt.show ()
 
+from sklearn.metrics import confusion_matrix, classification_report
+
+labels_range = range(len(classes))  # typically [0..6] if 7 classes
+
+# Confusion Matrix
+cm = confusion_matrix(val_labels, val_preds, labels=labels_range)
+plt.figure(figsize=(6,5))
+sns.heatmap(
+    cm,
+    annot=True,
+    cmap="Blues",
+    xticklabels=classes,
+    yticklabels=classes,
+    fmt='d'
+)
+plt.title("Confusion Matrix (Validation)")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+
 # Classification Report
-report = classification_report (val_labels, val_preds, target_names=classes)
-print ("Classification Report:")
-print (report)
+report = classification_report(
+    val_labels,
+    val_preds,
+    labels=labels_range,
+    target_names=classes,
+    zero_division=0
+)
+print("Classification Report:")
+print(report)
 
 
 # ---------------------------------------------------------------------
@@ -336,35 +362,5 @@ plt.plot (epochs_range, history["train_acc"], label="Train Acc")
 plt.plot (epochs_range, history["val_acc"], label="Val Acc")
 plt.title ("Accuracy")
 plt.legend ()
-from sklearn.metrics import confusion_matrix, classification_report
 
-labels_range = range(len(classes))  # typically [0..6] if 7 classes
-
-# Confusion Matrix
-cm = confusion_matrix(val_labels, val_preds, labels=labels_range)
-plt.figure(figsize=(6,5))
-sns.heatmap(
-    cm,
-    annot=True,
-    cmap="Blues",
-    xticklabels=classes,
-    yticklabels=classes,
-    fmt='d'
-)
-plt.title("Confusion Matrix (Validation)")
-plt.xlabel("Predicted")
-plt.ylabel("True")
-plt.show()
-
-# Classification Report
-report = classification_report(
-    val_labels,
-    val_preds,
-    labels=labels_range,
-    target_names=classes,
-    zero_division=0
-)
-print("Classification Report:")
-print(report)
-
-plt.show()
+plt.show ()
