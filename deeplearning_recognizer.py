@@ -1,13 +1,11 @@
 # deeplearning_recognizer.py
 
+import open3d as o3d
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-
 import numpy as np
-import cv2
-import open3d as o3d
-from pathlib import Path
+
 
 from projection import project_points_to_image  # the same function from your code
 

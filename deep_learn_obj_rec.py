@@ -306,31 +306,6 @@ print(report)
 torch.save(model, "deeplearn_model.pth")
 print("Saved entire model to deeplearn_model.pth")
 
-# ---------------------------------------------------------------------
-# 9) Optional Single-file Prediction
-# ---------------------------------------------------------------------
-def predict_pointcloud(model, pcd_path: str, transform_fn):
-    model.eval()
-    pcd = o3d.io.read_point_cloud(pcd_path)
-
-    points_2d, color_image = project_points_to_image(
-        np.asarray(pcd.points),
-        colors=np.asarray(pcd.colors)
-    )
-
-    img_tensor = transform_fn(color_image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        outputs = model(img_tensor)
-        _, preds = torch.max(outputs, 1)
-    return class_names[preds[0]]
-
-# Example usage
-example_pcd = Path("data/training/book123.pcd")
-if example_pcd.exists():
-    pred = predict_pointcloud(model, str(example_pcd), transform_fn=val_transforms)
-    print(f"Prediction for {example_pcd.name}: {pred}")
-else:
-    print("No example .pcd found for single-file prediction.")
 
 # ---------------------------------------------------------------------
 # 10) Plot & Save Training Curves
