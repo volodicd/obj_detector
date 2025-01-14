@@ -56,7 +56,7 @@ python main.py
 #### Deep Learning Pipeline
 1. Train the model (if not using pre-trained):
 ```bash
-python deep_learn_obj_rec.py
+python deep_learn_obj_rec_train.py
 ```
 
 2. Run inference:

@@ -10,36 +10,28 @@ class ObjectRecognizer:
         self.training_data = {}
         self.descriptors_per_class = {}
 
+
     def train(self, class_name: str, descriptors: np.ndarray):
-        """Add training data for a class"""
         if class_name not in self.training_data:
             self.training_data[class_name] = []
             self.descriptors_per_class[class_name] = 0
-
         self.training_data[class_name].append(descriptors)
         self.descriptors_per_class[class_name] += len(descriptors)
 
-    def match_features(self, desc1: np.ndarray,
-                       desc2: np.ndarray,
-                       ratio_threshold: float = 0.7) -> List[cv2.DMatch]:
-        """Match SIFT features using ratio test"""
+
+    def match_features(self, desc1: np.ndarray, desc2: np.ndarray, ratio_threshold: float = 0.7) -> List[cv2.DMatch]:
         if desc1 is None or desc2 is None:
             return []
-
         # Find 2 nearest matches for each descriptor
         matches = self.matcher.knnMatch(desc1, desc2, k=2)
-
-        # Apply ratio test
         good_matches = []
         for m, n in matches:
             if m.distance < ratio_threshold * n.distance:
                 good_matches.append(m)
-
         return good_matches
 
-    def recognize_objects(self,
-                          scene_image: np.ndarray,
-                          label_image: np.ndarray) -> Dict[int, str]:
+
+    def recognize_objects(self, scene_image: np.ndarray, label_image: np.ndarray) -> Dict[int, str]:
         """
         Recognize objects in the scene using per-cluster voting
 
@@ -57,6 +49,7 @@ class ObjectRecognizer:
 
         unique_clusters = np.unique(label_image)
         unique_clusters = unique_clusters[unique_clusters != -1]  # Remove background
+        # Initialize voting dictionary
         cluster_votes = {cid: {class_name: 0 for class_name in self.training_data.keys()}
                          for cid in unique_clusters}
 
@@ -84,8 +77,7 @@ class ObjectRecognizer:
         return classifications
 
 
-def normalize_votes(votes: Dict[str, int],
-                    descriptors_per_class: Dict[str, int]) -> Dict[str, float]:
+def normalize_votes(votes: Dict[str, int], descriptors_per_class: Dict[str, int]) -> Dict[str, float]:
     """
     Normalize vote counts by number of descriptors per class
     to avoid bias towards classes with more features

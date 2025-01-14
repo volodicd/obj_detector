@@ -79,10 +79,7 @@ def main():
         scene_id = pcd_file.stem
         try:
             scene_pcd = o3d.io.read_point_cloud(str(pcd_file))
-            classifications, result_image, label_image = pipeline.process_scene(
-                pcd=scene_pcd,
-                scene_id=scene_id
-            )
+            classifications, result_image, label_image = pipeline.process_scene(pcd=scene_pcd, scene_id=scene_id)
             print("Detected objects:")
             for cluster_id, class_name in classifications.items():
                 print(f"  Cluster {cluster_id}: {class_name}")

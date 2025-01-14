@@ -19,12 +19,7 @@ def cluster_objects(pcd: o3d.geometry.PointCloud,
         - List of point clouds, one for each detected object
         - Array of labels for each point in the original cloud
     """
-    labels = np.array(dbscan(
-        np.asarray(pcd.points),
-        eps=eps,
-        min_samples=min_points,
-    ))
-
+    labels = np.array(dbscan(np.asarray(pcd.points), eps=eps, min_samples=min_points))
     unique_labels = np.unique(labels)
     clusters = []
     # Filter out noise points (label -1) and small clusters
@@ -35,7 +30,6 @@ def cluster_objects(pcd: o3d.geometry.PointCloud,
         if len(np.asarray(cluster_points.points)) < min_points:
             continue
         clusters.append(cluster_points)
-
     return clusters, labels
 
 
