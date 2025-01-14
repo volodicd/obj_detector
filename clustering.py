@@ -102,20 +102,3 @@ def dbscan(points: np.ndarray,
     # Replacing leftovers -2 (never visited) with -1 if any remain
     labels[labels == -2] = -1
     return labels
-
-def get_cluster_centers(clusters:List[o3d.geometry.PointCloud]) -> np.ndarray:
-    """
-    Calculate the centroid of each cluster
-
-    Args:
-        clusters: List of point clouds representing clusters
-
-    Returns:
-        Array of cluster centroids
-    """
-    centers = []
-    for cluster in clusters:
-        points = np.asarray(cluster.points)
-        center = np.mean(points, axis=0)
-        centers.append(center)
-    return np.array(centers)

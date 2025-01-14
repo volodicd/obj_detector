@@ -3,7 +3,7 @@
 
 """3D to 2D projection module for object recognition pipeline"""
 
-from typing import Tuple, Optional
+from typing import Tuple
 import numpy as np
 import cv2
 import open3d as o3d

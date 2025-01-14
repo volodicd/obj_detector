@@ -3,7 +3,7 @@
 
 """Object recognition module using SIFT features"""
 
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import numpy as np
 import cv2
 
@@ -98,19 +98,6 @@ class ObjectRecognizer:
             classifications[cluster_id] = best_class
 
         return classifications
-
-    def visualize_matches(self,
-                          scene_image: np.ndarray,
-                          train_image: np.ndarray,
-                          matches: List[cv2.DMatch],
-                          keypoints1: List[cv2.KeyPoint],
-                          keypoints2: List[cv2.KeyPoint]) -> np.ndarray:
-        """Visualize feature matches between two images"""
-        match_image = cv2.drawMatches(scene_image, keypoints1,
-                                      train_image, keypoints2,
-                                      matches, None,
-                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        return match_image
 
 
 def normalize_votes(votes: Dict[str, int],

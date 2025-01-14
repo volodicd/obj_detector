@@ -2,6 +2,7 @@ from fit_plane import remove_ground_plane
 from clustering import cluster_objects
 from projection import project_pointcloud
 from object_recognition import ObjectRecognizer
+import open3d as o3d
 from helper_functions import *
 
 
@@ -50,8 +51,7 @@ class ObjectRecognitionPipeline:
         result_image = visualize_recognition_results(
             processed_image,
             label_image,
-            classifications,
-
+            classifications
         )
 
         if self.results_dir is not None:

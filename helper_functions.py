@@ -4,21 +4,17 @@
 """Helper functions for 3D object recognition pipeline"""
 
 import numpy as np
-import open3d as o3d
 import cv2
-import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from pathlib import Path
 
 
-def visualize_label_image (label_image: np.ndarray, title: str = "Cluster Labels") -> np.ndarray:
+def visualize_label_image (label_image: np.ndarray) -> np.ndarray:
     """
     Visualize label image with different colors for each cluster
 
     Args:
         label_image: 2D array of cluster IDs
-        title: Title for the visualization
-
     Returns:
         Colored visualization of clusters
     """
@@ -144,7 +140,7 @@ def save_visualization (save_dir: Path,
                         classifications: Dict[int, str]):
     """Save comprehensive visualization results"""
     # Create visualization montage
-    label_viz = visualize_label_image (label_image)
+    label_viz = visualize_label_image(label_image)
 
     montage = create_montage (
         [original_image, label_viz, result_image],
