@@ -1,18 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-3D Object Recognition using a Pre-trained CNN (ResNet50) + Data Augmentation,
-on a SERVER (no GUI).
-
-- Instead of separate train/test folders, we have only "data/training" with all .pcd.
-- We do an 80/20 split to form our train and val sets.
-- We use ResNet50, freeze layers, replace final FC, and train with data augmentation.
-- We produce a confusion matrix, classification report, and save images to .png files.
-"""
-
 import matplotlib
-matplotlib.use('Agg')  # Force non-GUI backend for servers
+matplotlib.use('Agg')  # Force non-gui (was trained on the cloud)
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -24,20 +11,19 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 import numpy as np
-import cv2
 import random
 from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
 
 from sklearn.metrics import confusion_matrix, classification_report
+from projection import project_points_to_image
 
-# ---------------------------------------------------------------------
-# 1) Device
-# ---------------------------------------------------------------------
+
+# chosing the device (best on Nvidia GPU)
 if torch.backends.mps.is_available():
     device = torch.device("mps")
-    print("Using device: MPS (Apple Silicon)")
+    print("Using device: MPS (M proc)")
 elif torch.cuda.is_available():
     device = torch.device("cuda")
     print("Using device: CUDA")
@@ -45,15 +31,8 @@ else:
     device = torch.device("cpu")
     print("Using device: CPU")
 
-# ---------------------------------------------------------------------
-# 2) Projection function
-# ---------------------------------------------------------------------
-from projection import project_points_to_image
-# Must return (points_2d, color_image) with color_image = np.uint8, shape(H,W,3).
 
-# ---------------------------------------------------------------------
-# 3) Single Dataset Class
-# ---------------------------------------------------------------------
+
 class PointCloudDataset(Dataset):
     """
     Reads .pcd files from a list of (pcd_path, class_idx).
@@ -84,20 +63,13 @@ class PointCloudDataset(Dataset):
             colors=np.asarray(pcd.colors)
         )
         # color_image => uint8 (H, W, 3)
-
-        # Optional: if shape is (3,H,W), transpose.
-        # if color_image.shape[0] == 3:
-        #     color_image = color_image.transpose(1,2,0)
-
-        # Transforms
         if self.transform is not None:
             color_image = self.transform(color_image)
 
         return color_image, class_idx
 
-# ---------------------------------------------------------------------
-# 4) Data Transforms
-# ---------------------------------------------------------------------
+
+
 train_transforms = transforms.Compose([
     transforms.ToPILImage(),
     transforms.RandomHorizontalFlip(p=0.5),
@@ -105,39 +77,33 @@ train_transforms = transforms.Compose([
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.02),
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406],
-                         [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
 ])
 
 val_transforms = transforms.Compose([
     transforms.ToPILImage(),
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406],
-                         [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# ---------------------------------------------------------------------
-# 5) Gather all .pcd in data/training, do an 80/20 split
-# ---------------------------------------------------------------------
+
+# splitting train/validation 80:20
 train_dir = Path("data/training")
 
 all_files = sorted(list(train_dir.glob("*.pcd")))
-print(f"Found {len(all_files)} total .pcd files in data/training")
 
-# Identify classes
 class_names_set = set()
-samples_all = []  # will hold (str(pcd_path), class_name)
+samples_all = []
 
 for pcd_file in all_files:
-    stem = pcd_file.stem  # e.g. "book003"
-    class_name = "".join(c for c in stem if not c.isdigit())  # "book"
+    stem = pcd_file.stem
+    class_name = "".join(c for c in stem if not c.isdigit())
     class_names_set.add(class_name)
     samples_all.append((str(pcd_file), class_name))
 
 class_names = sorted(list(class_names_set))
 class_to_idx = {cls_name: i for i, cls_name in enumerate(class_names)}
-print("Classes found:", class_names)
 
 # Convert each (path, class_name) -> (path, class_idx)
 samples_mapped = []
@@ -146,7 +112,7 @@ for (path_str, cls_n) in samples_all:
         class_idx = class_to_idx[cls_n]
         samples_mapped.append((path_str, class_idx))
 
-random.shuffle(samples_mapped)  # shuffle in place
+random.shuffle(samples_mapped)
 
 train_size = int(0.8 * len(samples_mapped))
 train_samples = samples_mapped[:train_size]
@@ -154,23 +120,17 @@ val_samples   = samples_mapped[train_size:]
 
 print(f"Split: {len(train_samples)} train samples, {len(val_samples)} val samples.")
 
-# Create two datasets
 train_dataset = PointCloudDataset(train_samples, class_to_idx, transform=train_transforms)
 val_dataset   = PointCloudDataset(val_samples,   class_to_idx, transform=val_transforms)
-
-# DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True,  num_workers=0)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True,  num_workers=0) # do not increase num_workers on MacOS(its crashing)
 val_loader   = DataLoader(val_dataset,   batch_size=8, shuffle=False, num_workers=0)
 
 print(f"Train loader: {len(train_loader.dataset)} samples")
 print(f"Val loader:   {len(val_loader.dataset)} samples")
 
-# ---------------------------------------------------------------------
-# 6) Create a Pre-trained ResNet50, Replace FC
-# ---------------------------------------------------------------------
+# Create pretrained ResNet50 model
 def create_model(num_classes: int):
     model = models.resnet50(pretrained=True)
-    # Freeze all layers
     for param in model.parameters():
         param.requires_grad = False
 
@@ -190,9 +150,7 @@ model = create_model(num_classes).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.fc.parameters(), lr=0.001)
 
-# ---------------------------------------------------------------------
-# 7) Training Loop
-# ---------------------------------------------------------------------
+# training loop
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=20):
     best_acc = 0.0
     history = {
@@ -245,7 +203,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
             print(f"{phase} Loss: {epoch_loss:.4f} | Acc: {epoch_acc:.4f}")
 
-            # Save best model
             if phase == "val" and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 torch.save(model.state_dict(), "best_model.pth")
@@ -254,12 +211,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return model, history
 
 model, history = train_model(
-    model, train_loader, val_loader, criterion, optimizer, num_epochs=20
+    model, train_loader, val_loader, criterion, optimizer, num_epochs=10 # 10 epochs are enough to get 90% accuracy
 )
 
-# ---------------------------------------------------------------------
-# 8) Evaluate on Val
-# ---------------------------------------------------------------------
+
 def evaluate_model(model, loader):
     model.eval()
     all_preds = []
@@ -302,14 +257,9 @@ report = classification_report(
 print("Classification Report:")
 print(report)
 
-# Export entire model
 torch.save(model, "deeplearn_model.pth")
-print("Saved entire model to deeplearn_model.pth")
 
-
-# ---------------------------------------------------------------------
-# 10) Plot & Save Training Curves
-# ---------------------------------------------------------------------
+# adding plots for training curves
 epochs_range = range(len(history["train_loss"]))
 
 plt.figure(figsize=(12,5))

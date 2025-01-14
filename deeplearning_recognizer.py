@@ -1,13 +1,9 @@
-# deeplearning_recognizer.py
-
 import open3d as o3d
 import torch
-import torch.nn as nn
 import torchvision.transforms as transforms
 import numpy as np
+from projection import project_points_to_image
 
-
-from projection import project_points_to_image  # the same function from your code
 
 class DeepLearningRecognizer:
     def __init__(self, model_path: str, class_names: list):
@@ -15,8 +11,7 @@ class DeepLearningRecognizer:
         model_path : path to the .pth file with your trained model
         class_names: list of class names in the same order as used during training
         """
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # Load the entire model
+        self.device = torch.device("cpu") # enought for inference
         self.model = torch.load(model_path, map_location=self.device)
         self.model.eval()
 
@@ -36,15 +31,9 @@ class DeepLearningRecognizer:
         Given a single cluster's point cloud, project to 2D and run inference.
         Returns the predicted class name.
         """
-        # Convert to arrays
         points = np.asarray(pcd.points)
         colors = np.asarray(pcd.colors)
-
-        # Project to 2D
         points_2d, color_image = project_points_to_image(points, colors)
-        # color_image: shape(H, W, 3) in uint8
-
-        # Apply transforms
         img_tensor = self.inference_transform(color_image).unsqueeze(0).to(self.device)
 
         with torch.no_grad():

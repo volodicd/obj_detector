@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""Object recognition module using SIFT features"""
-
 from typing import Dict, List
 import numpy as np
 import cv2
@@ -65,35 +60,24 @@ class ObjectRecognizer:
         cluster_votes = {cid: {class_name: 0 for class_name in self.training_data.keys()}
                          for cid in unique_clusters}
 
-        # Match with each training class and accumulate votes
         for class_name, train_descriptor_list in self.training_data.items():
             for train_descriptors in train_descriptor_list:
                 matches = self.match_features(scene_descriptors, train_descriptors)
 
-                # Assign votes to clusters based on keypoint locations
                 for match in matches:
-                    # Get matched keypoint location in scene
                     kp = scene_keypoints[match.queryIdx]
                     x, y = int(round(kp.pt[0])), int(round(kp.pt[1]))
-
-                    # Check image bounds
                     if 0 <= y < label_image.shape[0] and 0 <= x < label_image.shape[1]:
-                        # Get cluster ID at keypoint location
                         cluster_id = label_image[y, x]
                         if cluster_id != -1:  # If keypoint is on a valid cluster
                             cluster_votes[cluster_id][class_name] += 1
 
-        # Normalize votes and select best class for each cluster
         classifications = {}
         for cluster_id in cluster_votes.keys():
             votes = cluster_votes[cluster_id]
-            if not any(votes.values()):  # Skip if no votes
+            if not any(votes.values()):
                 continue
-
-            # Normalize votes by number of descriptors per class
             normalized_votes = normalize_votes(votes, self.descriptors_per_class)
-
-            # Select class with highest normalized vote count
             best_class = max(normalized_votes.items(), key=lambda x: x[1])[0]
             classifications[cluster_id] = best_class
 
