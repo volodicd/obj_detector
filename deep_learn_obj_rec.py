@@ -161,7 +161,7 @@ def create_model (num_classes):
     model = models.resnet50 (pretrained=True)
 
     # Freeze all layers
-    for param in model.parameters ():
+    for param in model.parameters():
         param.requires_grad = False
 
     # Remove final layer => replace with a smaller classification head
@@ -175,7 +175,7 @@ def create_model (num_classes):
     return model
 
 
-model = create_model (len (train_dataset.classes)).to (device)
+model = create_model(len(train_dataset.classes)).to(device)
 
 # We train only the last layer by default
 criterion = nn.CrossEntropyLoss ()
@@ -246,7 +246,7 @@ def train_model (model, train_loader, val_loader, criterion, optimizer, num_epoc
     return model, history
 
 
-model, history = train_model (model, train_loader, val_loader, criterion, optimizer, num_epochs=10)
+model, history = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10)
 
 
 # ---------------------------------------------------------------------
@@ -336,5 +336,35 @@ plt.plot (epochs_range, history["train_acc"], label="Train Acc")
 plt.plot (epochs_range, history["val_acc"], label="Val Acc")
 plt.title ("Accuracy")
 plt.legend ()
+from sklearn.metrics import confusion_matrix, classification_report
 
-plt.show ()
+labels_range = range(len(classes))  # typically [0..6] if 7 classes
+
+# Confusion Matrix
+cm = confusion_matrix(val_labels, val_preds, labels=labels_range)
+plt.figure(figsize=(6,5))
+sns.heatmap(
+    cm,
+    annot=True,
+    cmap="Blues",
+    xticklabels=classes,
+    yticklabels=classes,
+    fmt='d'
+)
+plt.title("Confusion Matrix (Validation)")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+
+# Classification Report
+report = classification_report(
+    val_labels,
+    val_preds,
+    labels=labels_range,
+    target_names=classes,
+    zero_division=0
+)
+print("Classification Report:")
+print(report)
+
+plt.show()
