@@ -19,14 +19,12 @@ def cluster_objects(pcd: o3d.geometry.PointCloud,
         - List of point clouds, one for each detected object
         - Array of labels for each point in the original cloud
     """
-    # Run DBSCAN directly on the input point cloud without downsampling
-    labels = np.array(pcd.cluster_dbscan(
+    labels = np.array(dbscan(
+        np.asarray(pcd.points),
         eps=eps,
-        min_points=min_points,
-        print_progress=False
+        min_samples=min_points,
     ))
 
-    # Separate clusters
     unique_labels = np.unique(labels)
     clusters = []
 
