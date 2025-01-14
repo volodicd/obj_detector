@@ -193,7 +193,7 @@ optimizer = optim.Adam(model.fc.parameters(), lr=0.001)
 # ---------------------------------------------------------------------
 # 7) Training Loop
 # ---------------------------------------------------------------------
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=20):
     best_acc = 0.0
     history = {
         "train_loss": [],
@@ -254,7 +254,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return model, history
 
 model, history = train_model(
-    model, train_loader, val_loader, criterion, optimizer, num_epochs=10
+    model, train_loader, val_loader, criterion, optimizer, num_epochs=20
 )
 
 # ---------------------------------------------------------------------
