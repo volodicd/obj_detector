@@ -299,6 +299,8 @@ report = classification_report(
 )
 print("Classification Report:")
 print(report)
+torch.save(model, "deeplearn_model.pth")
+print("Model saved to deeplearn_model.pth")
 
 
 # ---------------------------------------------------------------------
