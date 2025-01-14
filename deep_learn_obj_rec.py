@@ -3,21 +3,16 @@
 
 """
 3D Object Recognition using a Pre-trained CNN (ResNet50) + Data Augmentation,
-adapted for a SERVER (no GUI).
+on a SERVER (no GUI).
 
-We remove the last layer of ResNet, add our own classification head, and train on projected .pcd data.
-
-Steps:
-1) Load point cloud data from "data/training" & "data/test".
-2) Project the 3D points to 2D color images using 'project_points_to_image'.
-3) Feed the images into a pre-trained ResNet50, freeze most layers, re-train the final layer.
-4) Heavier data augmentation is used to mitigate the small dataset.
-5) We generate a confusion matrix and classification report, saving them to files (no GUI).
-6) We also plot training curves to .png files instead of using plt.show().
+- Instead of separate train/test folders, we have only "data/training" with all .pcd.
+- We do an 80/20 split to form our train and val sets.
+- We use ResNet50, freeze layers, replace final FC, and train with data augmentation.
+- We produce a confusion matrix, classification report, and save images to .png files.
 """
 
 import matplotlib
-matplotlib.use('Agg')  # Force a non-GUI backend for server environments
+matplotlib.use('Agg')  # Force non-GUI backend for servers
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -30,16 +25,15 @@ import torchvision.transforms as transforms
 
 import numpy as np
 import cv2
+import random
 from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
 
-# For confusion matrix & report
 from sklearn.metrics import confusion_matrix, classification_report
 
-
 # ---------------------------------------------------------------------
-# 1) Device Selection for Server
+# 1) Device
 # ---------------------------------------------------------------------
 if torch.backends.mps.is_available():
     device = torch.device("mps")
@@ -51,75 +45,58 @@ else:
     device = torch.device("cpu")
     print("Using device: CPU")
 
-
 # ---------------------------------------------------------------------
-# 2) Projection Function (unchanged)
+# 2) Projection function
 # ---------------------------------------------------------------------
 from projection import project_points_to_image
-# Must return: (points_2d, color_image)
-# where color_image is np.uint8 in shape (H, W, 3).
-
+# Must return (points_2d, color_image) with color_image = np.uint8, shape(H,W,3).
 
 # ---------------------------------------------------------------------
-# 3) Custom Dataset
+# 3) Single Dataset Class
 # ---------------------------------------------------------------------
 class PointCloudDataset(Dataset):
     """
-    Reads .pcd files in data_dir:
-      e.g., "book001.pcd" => class 'book'
-    Projects to 2D, applies transforms (aug).
+    Reads .pcd files from a list of (pcd_path, class_idx).
+    Projects to 2D, transforms to tensor.
     Returns (image_tensor, class_idx).
     """
-    def __init__(self, data_dir: str, transform=None):
-        self.data_dir = Path(data_dir)
+    def __init__(self, samples, class_to_idx, transform=None):
+        """
+        samples: list of (pcd_path, class_idx)
+        class_to_idx: dict mapping class_name -> index
+        transform: Torch transform pipeline
+        """
+        self.samples = samples
+        self.class_to_idx = class_to_idx
         self.transform = transform
-        self.samples = []
-        self.classes = set()
-
-        # Identify classes from filenames
-        for pcd_file in self.data_dir.glob("*.pcd"):
-            stem = pcd_file.stem
-            class_name = "".join(c for c in stem if not c.isdigit())
-            self.classes.add(class_name)
-
-        self.classes = sorted(list(self.classes))
-        self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
-
-        # Collect (pcd_path, class_idx)
-        for pcd_file in self.data_dir.glob("*.pcd"):
-            stem = pcd_file.stem
-            class_name = "".join(c for c in stem if not c.isdigit())
-            if class_name in self.class_to_idx:
-                class_idx = self.class_to_idx[class_name]
-                self.samples.append((str(pcd_file), class_idx))
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         pcd_path, class_idx = self.samples[idx]
-        pcd = o3d.io.read_point_cloud(pcd_path)
+        pcd_path = Path(pcd_path)
+        pcd = o3d.io.read_point_cloud(str(pcd_path))
 
         # Project to 2D
         points_2d, color_image = project_points_to_image(
             np.asarray(pcd.points),
             colors=np.asarray(pcd.colors)
         )
-        # color_image => np.uint8, shape (H, W, 3)
+        # color_image => uint8 (H, W, 3)
 
-        # If shape is (3, H, W) (unlikely), transpose:
+        # Optional: if shape is (3,H,W), transpose.
         # if color_image.shape[0] == 3:
-        #     color_image = np.transpose(color_image, (1,2,0))
+        #     color_image = color_image.transpose(1,2,0)
 
-        # Apply transforms
+        # Transforms
         if self.transform is not None:
             color_image = self.transform(color_image)
 
         return color_image, class_idx
 
-
 # ---------------------------------------------------------------------
-# 4) Data Transforms (Including Augmentations)
+# 4) Data Transforms
 # ---------------------------------------------------------------------
 train_transforms = transforms.Compose([
     transforms.ToPILImage(),
@@ -140,32 +117,65 @@ val_transforms = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-train_dir = "data/training"
-val_dir   = "data/test"
+# ---------------------------------------------------------------------
+# 5) Gather all .pcd in data/training, do an 80/20 split
+# ---------------------------------------------------------------------
+train_dir = Path("data/training")
 
-train_dataset = PointCloudDataset(train_dir, transform=train_transforms)
-val_dataset   = PointCloudDataset(val_dir,   transform=val_transforms)
+all_files = sorted(list(train_dir.glob("*.pcd")))
+print(f"Found {len(all_files)} total .pcd files in data/training")
 
-# On a server with Mac M1, might do num_workers=0 to avoid stalling
+# Identify classes
+class_names_set = set()
+samples_all = []  # will hold (str(pcd_path), class_name)
+
+for pcd_file in all_files:
+    stem = pcd_file.stem  # e.g. "book003"
+    class_name = "".join(c for c in stem if not c.isdigit())  # "book"
+    class_names_set.add(class_name)
+    samples_all.append((str(pcd_file), class_name))
+
+class_names = sorted(list(class_names_set))
+class_to_idx = {cls_name: i for i, cls_name in enumerate(class_names)}
+print("Classes found:", class_names)
+
+# Convert each (path, class_name) -> (path, class_idx)
+samples_mapped = []
+for (path_str, cls_n) in samples_all:
+    if cls_n in class_to_idx:
+        class_idx = class_to_idx[cls_n]
+        samples_mapped.append((path_str, class_idx))
+
+random.shuffle(samples_mapped)  # shuffle in place
+
+train_size = int(0.8 * len(samples_mapped))
+train_samples = samples_mapped[:train_size]
+val_samples   = samples_mapped[train_size:]
+
+print(f"Split: {len(train_samples)} train samples, {len(val_samples)} val samples.")
+
+# Create two datasets
+train_dataset = PointCloudDataset(train_samples, class_to_idx, transform=train_transforms)
+val_dataset   = PointCloudDataset(val_samples,   class_to_idx, transform=val_transforms)
+
+# DataLoaders
 train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True,  num_workers=0)
 val_loader   = DataLoader(val_dataset,   batch_size=8, shuffle=False, num_workers=0)
 
-print(f"Num train samples = {len(train_dataset)}")
-print(f"Num val samples   = {len(val_dataset)}")
-print(f"Training classes = {train_dataset.classes}")
-
+print(f"Train loader: {len(train_loader.dataset)} samples")
+print(f"Val loader:   {len(val_loader.dataset)} samples")
 
 # ---------------------------------------------------------------------
-# 5) Create a Pre-trained ResNet50, Replace Final Layer
+# 6) Create a Pre-trained ResNet50, Replace FC
 # ---------------------------------------------------------------------
 def create_model(num_classes: int):
     model = models.resnet50(pretrained=True)
-    # Freeze all existing layers
+    # Freeze all layers
     for param in model.parameters():
         param.requires_grad = False
 
-    # Replace final FC layer
-    in_features = model.fc.in_features  # 2048 in ResNet50
+    # Replace final FC
+    in_features = model.fc.in_features
     model.fc = nn.Sequential(
         nn.Linear(in_features, 256),
         nn.ReLU(),
@@ -174,15 +184,14 @@ def create_model(num_classes: int):
     )
     return model
 
-num_classes = len(train_dataset.classes)
+num_classes = len(class_names)
 model = create_model(num_classes).to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.fc.parameters(), lr=0.001)
 
-
 # ---------------------------------------------------------------------
-# 6) Training Loop
+# 7) Training Loop
 # ---------------------------------------------------------------------
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10):
     best_acc = 0.0
@@ -245,13 +254,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return model, history
 
 model, history = train_model(
-    model, train_loader, val_loader,
-    criterion, optimizer, num_epochs=10
+    model, train_loader, val_loader, criterion, optimizer, num_epochs=10
 )
 
-
 # ---------------------------------------------------------------------
-# 7) Evaluate: Confusion Matrix & Classification Report (Headless)
+# 8) Evaluate on Val
 # ---------------------------------------------------------------------
 def evaluate_model(model, loader):
     model.eval()
@@ -269,47 +276,40 @@ def evaluate_model(model, loader):
     return np.array(all_labels), np.array(all_preds)
 
 val_labels, val_preds = evaluate_model(model, val_loader)
-classes = val_dataset.classes  # e.g. ['book','cookiebox','cup','ketchup','sugar','sweets','tea']
 
-# Force all known numeric labels [0..num_classes-1]
-labels_list = list(range(num_classes))
-
-# A) Confusion Matrix
+labels_list = list(range(num_classes))  # e.g. [0..(num_classes-1)]
 cm = confusion_matrix(val_labels, val_preds, labels=labels_list)
+
 plt.figure(figsize=(6,5))
 sns.heatmap(
     cm, annot=True, cmap="Blues",
-    xticklabels=classes,
-    yticklabels=classes,
+    xticklabels=class_names,
+    yticklabels=class_names,
     fmt='d'
 )
-plt.title("Confusion Matrix (Validation)")
+plt.title("Confusion Matrix (Val - 80/20 Split)")
 plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.tight_layout()
-plt.savefig("confusion_matrix.png")  # Save, do not show
+plt.savefig("confusion_matrix.png")
 
-# B) Classification Report
 report = classification_report(
-    val_labels,
-    val_preds,
+    val_labels, val_preds,
     labels=labels_list,
-    target_names=classes,
+    target_names=class_names,
     zero_division=0
 )
 print("Classification Report:")
 print(report)
-torch.save(model, "deeplearn_model.pth")
-print("Model saved to deeplearn_model.pth")
 
+# Export entire model
+torch.save(model, "deeplearn_model.pth")
+print("Saved entire model to deeplearn_model.pth")
 
 # ---------------------------------------------------------------------
-# 8) Single PCD Prediction
+# 9) Optional Single-file Prediction
 # ---------------------------------------------------------------------
 def predict_pointcloud(model, pcd_path: str, transform_fn):
-    """
-    Predict the class of a single .pcd using the trained model.
-    """
     model.eval()
     pcd = o3d.io.read_point_cloud(pcd_path)
 
@@ -318,24 +318,22 @@ def predict_pointcloud(model, pcd_path: str, transform_fn):
         colors=np.asarray(pcd.colors)
     )
 
-    tensor_img = transform_fn(color_image).unsqueeze(0).to(device)
+    img_tensor = transform_fn(color_image).unsqueeze(0).to(device)
     with torch.no_grad():
-        outputs = model(tensor_img)
+        outputs = model(img_tensor)
         _, preds = torch.max(outputs, 1)
-    predicted_idx = preds[0]
-    return train_dataset.classes[predicted_idx]
+    return class_names[preds[0]]
 
 # Example usage
-test_pcd = "data/test/image000.pcd"
-if Path(test_pcd).exists():
-    pred = predict_pointcloud(model, test_pcd, transform_fn=val_transforms)
-    print(f"Predicted class for {test_pcd}: {pred}")
+example_pcd = Path("data/training/book123.pcd")
+if example_pcd.exists():
+    pred = predict_pointcloud(model, str(example_pcd), transform_fn=val_transforms)
+    print(f"Prediction for {example_pcd.name}: {pred}")
 else:
-    print(f"No test file found at {test_pcd}")
-
+    print("No example .pcd found for single-file prediction.")
 
 # ---------------------------------------------------------------------
-# 9) Plot Training Curves & Save to PNG
+# 10) Plot & Save Training Curves
 # ---------------------------------------------------------------------
 epochs_range = range(len(history["train_loss"]))
 
@@ -343,15 +341,15 @@ plt.figure(figsize=(12,5))
 
 plt.subplot(1,2,1)
 plt.plot(epochs_range, history["train_loss"], label="Train Loss")
-plt.plot(epochs_range, history["val_loss"], label="Val Loss")
+plt.plot(epochs_range, history["val_loss"],   label="Val Loss")
 plt.title("Loss")
 plt.legend()
 
 plt.subplot(1,2,2)
-plt.plot(epochs_range, history["train_acc"], label="Train Acc")
-plt.plot(epochs_range, history["val_acc"], label="Val Acc")
+plt.plot(epochs_range, history["train_acc"],  label="Train Acc")
+plt.plot(epochs_range, history["val_acc"],    label="Val Acc")
 plt.title("Accuracy")
 plt.legend()
 
 plt.tight_layout()
-plt.savefig("training_curves.png")  # Save instead of plt.show()
+plt.savefig("training_curves.png")
