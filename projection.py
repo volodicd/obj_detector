@@ -31,55 +31,47 @@ def project_points_to_image(points: np.ndarray,
     points_2d = np.zeros((len(points), 2))
     image = np.zeros((*image_size, 3), dtype=np.uint8)
 
-    # Project points
+    # extract X, Y, Z
     x, y, z = points[:, 0], points[:, 1], points[:, 2]
-
-    # Filter points behind camera
-    valid_mask = z > 0
+    valid_mask = z > 0 # Ignore points behind the camera
 
     if np.sum(valid_mask) == 0:
         return points_2d, image
 
-    # Normalize coordinates
     x_norm = x[valid_mask] / z[valid_mask]
     y_norm = y[valid_mask] / z[valid_mask]
 
-    # Apply distortion
+    # distortion
     r2 = x_norm ** 2 + y_norm ** 2
     r4 = r2 ** 2
     r6 = r2 ** 3
 
-    # Radial distortion
+    # radial distortion
     radial = (1 + k1_rgb * r2 + k2_rgb * r4 + k3_rgb * r6)
     x_dist = x_norm * radial
     y_dist = y_norm * radial
 
-    # Tangential distortion
+    # tangential distortion
     x_dist = x_dist + (2 * p1_rgb * x_norm * y_norm + p2_rgb * (r2 + 2 * x_norm ** 2))
     y_dist = y_dist + (p1_rgb * (r2 + 2 * y_norm ** 2) + 2 * p2_rgb * x_norm * y_norm)
 
-    # Project to pixel coordinates
+    # vonvert distorted normalized coordinates to pixel coordinates
     x_proj = fx_rgb * x_dist + cx_rgb
     y_proj = fy_rgb * y_dist + cy_rgb
 
-    # Store projected points
     points_2d[valid_mask, 0] = x_proj
     points_2d[valid_mask, 1] = y_proj
 
-    # Convert to pixel coordinates
+    # only keep points within image bounds
     pixels = points_2d[valid_mask].astype(int)
-
-    # Filter points within image bounds
     in_bounds = ((pixels[:, 0] >= 0) & (pixels[:, 0] < image_size[1]) &
                  (pixels[:, 1] >= 0) & (pixels[:, 1] < image_size[0]))
 
     pixels = pixels[in_bounds]
     valid_colors = colors[valid_mask][in_bounds]
 
-    # Create image
     if len(pixels) > 0:
         image[pixels[:, 1], pixels[:, 0]] = (valid_colors * 255).astype(np.uint8)
-
     return points_2d, image
 
 
@@ -94,7 +86,6 @@ def fill_holes(image: np.ndarray, kernel_size: int = 3) -> np.ndarray:
     Returns:
         Processed image with holes filled
     """
-    # Convert to grayscale if needed
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
@@ -103,11 +94,9 @@ def fill_holes(image: np.ndarray, kernel_size: int = 3) -> np.ndarray:
     # Create binary mask
     _, mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
 
-    # Create kernel for morphological operations
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
-
-    # Fill holes using closing operation
     filled = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
 
     if len(image.shape) == 3:
         result = image.copy()
@@ -139,14 +128,9 @@ def project_pointcloud(pcd: o3d.geometry.PointCloud,
         - Processed image with holes filled
         - Label image with cluster IDs
     """
-    # Convert pointcloud to numpy arrays
     points = np.asarray(pcd.points)
     colors = np.asarray(pcd.colors)
-
-    # Project points
     points_2d, image = project_points_to_image(points, colors, image_size)
-
-    # Create label image
     label_image = create_label_image(points_2d, labels, image_size)
 
     # Fill holes in both color and label images
