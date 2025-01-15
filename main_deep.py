@@ -23,6 +23,7 @@ class DeepLearningPipeline:
         clusters, labels = cluster_objects(filtered_pcd)
         print("Projecting entire scene for visualization...")
         _, color_image, processed_image, label_image = project_pointcloud(filtered_pcd, labels)
+
         classifications = {}
         for cluster_id, _ in enumerate(clusters):
             if cluster_id == -1:
@@ -44,7 +45,6 @@ class DeepLearningPipeline:
             processed_image,
             label_image,
             result_image,
-            classifications
         )
 
         return classifications, result_image, label_image
@@ -53,24 +53,24 @@ class DeepLearningPipeline:
 def main():
     class_names = ['book','cookiebox','cup','ketchup','sugar','sweets','tea']
     model_path = "deeplearn_model.pth"
-
     pipeline = DeepLearningPipeline(model_path, class_names)
 
-    test_dir = Path("data/test")
-    for pcd_file in test_dir.glob("*.pcd"):
+    pcd_file = Path("data/test/image003.pcd")
+    scene_id = pcd_file.stem
+
+    try:
         print(f"\nProcessing {pcd_file.name}")
-        scene_id = pcd_file.stem
-        try:
-            scene_pcd = o3d.io.read_point_cloud(str(pcd_file))
-            classifications, result_image, label_image = pipeline.process_scene(
-                pcd=scene_pcd,
-                scene_id=scene_id
-            )
-            print("Detected objects:")
-            for cluster_id, class_name in classifications.items():
-                print(f"  Cluster {cluster_id}: {class_name}")
-        except Exception as e:
-            print(f"Error processing {pcd_file.name}: {str(e)}")
+        scene_pcd = o3d.io.read_point_cloud(str(pcd_file))
+        classifications, result_image, label_image = pipeline.process_scene(
+            pcd=scene_pcd,
+            scene_id=scene_id
+        )
+        print("Detected objects:")
+        for cluster_id, class_name in classifications.items():
+            print(f"  Cluster {cluster_id}: {class_name}")
+    except Exception as e:
+        print(f"Error processing {pcd_file.name}: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

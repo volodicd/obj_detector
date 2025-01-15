@@ -1,7 +1,3 @@
-# 3D Object Recognition Pipeline
-
-This project implements a 3D object recognition system with both traditional (SIFT-based) and deep learning approaches. It processes point cloud data to detect and classify objects in scenes.
-
 ## Project Structure
 
 ```
@@ -28,23 +24,21 @@ mv_exercise5/
 └── setup.sh               # Environment setup script
 ```
 
-## Quick Start
 
 ### Environment Setup
 
-1. Make sure you have Conda installed (Miniconda or Anaconda)
+1. Requires Python 11 and pip.
 
 2. Run the setup script:
+# Create and activate virtual environment
 ```bash
-chmod +x setup.sh
-./setup.sh
-```
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+.\venv\Scripts\activate   # Windows
+pip install -r requirements.txt
 
-Alternatively, create the environment manually:
-```bash
-conda env create -f mv_ex3_cpu.yml
-conda activate machinevision
-```
+
 
 ### Running the Pipelines
 
@@ -59,14 +53,14 @@ python main.py
 python deep_learn_obj_rec_train.py
 ```
 
-2. Run inference:
+2. Run inference(change scene number in the script):
 ```bash
-python main_deep.py
+python main_deep.py 
 ```
 
 ## Data Organization
 
-Place your point cloud data as follows:
+Place your data folder in the root as follows:
 ```
 data/
 ├── training/           # Individual object point clouds
@@ -80,7 +74,6 @@ data/
 
 ## Configuration Files
 
-- `mv_ex3_cpu.yml`: Conda environment specification
 - `requirements.txt`: Additional Python package requirements
 - `camera_params.py`: Camera calibration parameters
 
@@ -95,18 +88,7 @@ results/
 └── scene001_classifications.txt # Detected objects list
 ```
 
-### Deep Learning Pipeline (`results_deep/`)
-Similar structure as above, with additional training artifacts:
-- `confusion_matrix.png`
-- `training_curves.png`
-
 ## Parameters and Configuration
-
-### Camera Parameters
-Located in `camera_params.py`:
-- RGB camera intrinsics and distortion
-- Depth camera parameters
-- Transform between RGB and depth
 
 ### Recognition Parameters
 1. Ground Plane Removal:
@@ -129,22 +111,6 @@ num_epochs = 20
 learning_rate = 0.001
 ```
 
-## Troubleshooting
-
-1. Environment Issues:
-   - Run `conda env update -f mv_ex3_cpu.yml` to update environment
-   - Check CUDA availability for deep learning
-   - Verify OpenCV installation with `import cv2`
-
-2. Data Issues:
-   - Ensure PCD files are properly formatted
-   - Check file permissions in data directories
-   - Verify camera parameters match your setup
-
-3. Runtime Issues:
-   - Use `voxel_size` parameter for large point clouds
-   - Monitor GPU memory usage
-   - Check disk space for results
 
 ## Dataset Information
 

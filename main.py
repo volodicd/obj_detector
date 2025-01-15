@@ -61,7 +61,6 @@ class ObjectRecognitionPipeline:
                 processed_image,
                 label_image,
                 result_image,
-                classifications
             )
 
         return classifications, result_image, label_image
